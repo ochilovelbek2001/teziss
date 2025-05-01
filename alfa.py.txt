@@ -1,1 +1,127 @@
-salom
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+# 1. PARAMETRLARNI SOZLASH
+D = 1.0       # Diffuziya koeffitsienti
+m = 2.0        # Nochiziqlik parametri
+k = 1.0        # Reaksiya koeffitsienti
+p = 3.0        # φ(x) uchun p parametri
+n = 1.0        # φ(x) uchun n parametri
+beta = 1.0     # Nochiziqlik darajasi
+T = 1.0        # Vaqt parametri
+L = 10.0       # Hisoblash sohasi [-L, L]
+N = 200        # Nuqtalar soni
+dt = 0.0001    # Vaqt qadami
+t_max = 2.0    # Yakuniy vaqt
+
+# 2. BOSHLANG'ICH SHAKLANTIRISH
+x = np.linspace(-L, L, N)  # x ∈ [-L, L]
+dx = x[1] - x[0]
+
+# φ(x) funksiyasi
+
+
+def phi(x):
+    return ((p - n)/p) * np.abs(x)**(p/(p - n))
+
+# Boshlang'ich shart U_0(t,x)
+
+
+def initial_condition(t, x):
+    exponent = (phi(x) * (p/(p-1))) / np.sqrt(T + t) + k * t
+    return np.exp(exponent)
+
+
+omega = initial_condition(0, x)  # t=0 da boshlang'ich qiymat
+
+# 3. ASOSIY HISOBLASH (ITERATSIYA)
+
+
+def solve_pde():
+    global omega
+    omega_history = [omega.copy()]  # Vaqt bo'yicha yechimlarni saqlash
+
+    for t_step in range(int(t_max / dt)):
+        omega_new = omega.copy()
+
+        # HAR BIR NUQTA UCHUN
+        for i in range(1, N-1):
+            # Gradientni hisoblash (markaziy farq)
+            d_omega = (omega[i+1] - omega[i-1]) / (2 * dx)
+
+            # F(ω) ni hisoblash
+            F = (omega[i]**(m-1)) * \
+                (np.abs(k * omega[i]**(k-1) * d_omega))**(p-2)
+
+            # Diffuziya hadi
+            diffusion = D * F * \
+                (omega[i+1] - 2*omega[i] + omega[i-1]) / (dx**2)
+
+            # Reaksiya hadi
+            reaction = k * omega[i] * (1 + omega[i]**beta)
+
+            # Yangi qiymat
+            omega_new[i] = omega[i] + dt * (diffusion + reaction)
+
+        # Chegaraviy shartlar (Neumann)
+        omega_new[0] = omega_new[1]
+        omega_new[-1] = omega_new[-2]
+
+        omega = omega_new
+        omega_history.append(omega.copy())  # Natijani saqlash
+
+        # Progressni chiqarish
+        if t_step % 100 == 0:
+            print(f"Progress: {100 * t_step * dt / t_max:.1f}%")
+
+    return np.array(omega_history)
+
+
+# 4. TENGLAMANI YECHISH VA NATIJALARNI SAQLASH
+omega_history = solve_pde()
+
+# 5. GRAFIKLARNI CHIZISH
+plt.figure(figsize=(12, 6))
+
+# a) Boshlang'ich va yakuniy holat
+plt.subplot(1, 2, 1)
+plt.plot(x, omega_history[0], 'b-', label='Boshlang\'ich (t=0)')
+plt.plot(x, omega_history[-1], 'r-', label=f'Yakuniy (t={t_max})')
+plt.xlabel('x')
+plt.ylabel('ω(x,t)')
+plt.title('Boshlang\'ich va yakuniy holat')
+plt.legend()
+plt.grid()
+
+# b) Vaqt bo'yicha o'zgarish
+plt.subplot(1, 2, 2)
+for t in [0, int(len(omega_history)/4), int(len(omega_history)/2), -1]:
+    plt.plot(x, omega_history[t], label=f't={t*dt:.2f}')
+plt.xlabel('x')
+plt.ylabel('ω(x,t)')
+plt.title('Vaqt bo\'yicha o\'zgarish')
+plt.legend()
+plt.grid()
+
+plt.tight_layout()
+plt.show()
+
+# 6. ANIMATSIYA (Ixtiyoriy)
+fig, ax = plt.subplots()
+line, = ax.plot(x, omega_history[0])
+ax.set_xlim(-L, L)
+ax.set_ylim(0, np.max(omega_history)*1.1)
+ax.set_xlabel('x')
+ax.set_ylabel('ω(x,t)')
+ax.set_title('Nochiziqli PDEning vaqt rivoji')
+
+
+def update(frame):
+    line.set_ydata(omega_history[frame])
+    ax.set_title(f'Nochiziqli PDE (t={frame*dt:.2f})')
+    return line,
+
+
+ani = FuncAnimation(fig, update, frames=len(omega_history), interval=50)
+plt.show()
